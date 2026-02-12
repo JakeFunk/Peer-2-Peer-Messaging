@@ -34,7 +34,6 @@ pub async fn run_tui(
     let mut app = App::new();
 
     loop {
-        // Drain incoming messages from gossip / system.
         while let Ok(msg) = ui_rx.try_recv() {
             app.add_message(msg);
         }
@@ -122,8 +121,6 @@ pub async fn run_tui(
             let total = messages.len();
             let mut list_state = ListState::default();
             if total > 0 {
-                // selected index drives what ratatui keeps in view.
-                // offset=0 → select the last item (bottom); offset=N → select N from the end.
                 let selected = total.saturating_sub(1 + app.scroll_offset);
                 list_state.select(Some(selected));
             }
@@ -132,7 +129,7 @@ pub async fn run_tui(
                 .block(Block::default().borders(Borders::ALL).title(
                     if app.scroll_offset > 0 { "Messages  ↑ scrolled" } else { "Messages" }
                 ))
-                .highlight_style(Style::default()); // no highlight decoration
+                .highlight_style(Style::default());
             f.render_stateful_widget(messages_widget, chunks[1], &mut list_state);
 
             // Input box – dim it in Normal mode to signal it's inactive.
@@ -149,7 +146,7 @@ pub async fn run_tui(
                 .block(Block::default().borders(Borders::ALL).title(input_title));
             f.render_widget(input, chunks[2]);
 
-            // Controls help panel.
+            // Controls Description Panel.
             let controls_text = match app.mode {
                 Mode::Insert => vec![
                     Line::from(vec![
@@ -165,7 +162,7 @@ pub async fn run_tui(
                     Line::from(vec![
                         Span::styled("i", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
                         Span::styled("  insert mode    ", Style::default().fg(Color::Gray)),
-                        Span::styled("↑↓ / PgUp PgDn", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+                        Span::styled("↑↓ / Up and Down Arrows", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
                         Span::styled("  scroll    ", Style::default().fg(Color::Gray)),
                         Span::styled("Ctrl+D", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
                         Span::styled("  delete last msg    ", Style::default().fg(Color::Gray)),
@@ -216,7 +213,7 @@ pub async fn run_tui(
                         _ => {}
                     },
 
-                    // ── NORMAL mode ──────────────────────────────────────────
+                    // ── NORMAL Mode ──────────────────────────────────────────
                     Mode::Normal => match key.code {
                         // Return to typing.
                         KeyCode::Char('i') => {
@@ -224,10 +221,8 @@ pub async fn run_tui(
                         }
 
                         // Scroll up/down.
-                        KeyCode::Up => { app.scroll_up(1); }
-                        KeyCode::Down => { app.scroll_down(1); }
-                        KeyCode::PageUp => { app.scroll_up(10); }
-                        KeyCode::PageDown => { app.scroll_down(10); }
+                        KeyCode::Up => { app.scroll_up(10); }
+                        KeyCode::Down => { app.scroll_down(10); }
 
                         // Quit.
                         KeyCode::Char('c')
