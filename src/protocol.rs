@@ -10,7 +10,6 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Message {
     pub body: MessageBody,
-    pub nonce: [u8; 16],
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -45,7 +44,6 @@ impl Message {
     pub fn new(body: MessageBody) -> Self {
         Self {
             body,
-            nonce: rand::random(),
         }
     }
 

@@ -98,15 +98,19 @@ pub async fn run_tui(
                 .messages
                 .iter()
                 .map(|m| match m {
-                    UiMessage::Chat(chat) => ListItem::new(Line::from(vec![
-                        Span::styled(
-                            &chat.sender,
-                            Style::default()
-                                .fg(Color::Cyan)
-                                .add_modifier(Modifier::BOLD),
-                        ),
-                        Span::raw(": "),
-                        Span::styled(&chat.content, Style::default().fg(Color::White)),
+                UiMessage::Chat(chat) => ListItem::new(Line::from(vec![
+                    Span::styled(
+                        if chat.encrypted { "[enc] " } else { "[!!!] " },
+                        Style::default().fg(Color::Green),
+                    ),
+                    Span::styled(
+                        &chat.sender,
+                    Style::default()
+                        .fg(Color::Cyan)
+                        .add_modifier(Modifier::BOLD),
+                    ),
+                    Span::raw(": "),
+                    Span::styled(&chat.content, Style::default().fg(Color::White)),
                     ])),
                     UiMessage::System(text) => ListItem::new(Line::from(Span::styled(
                         format!("• {}", text),

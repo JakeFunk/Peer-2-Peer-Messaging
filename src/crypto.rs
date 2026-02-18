@@ -70,10 +70,8 @@ pub fn encrypt_message(text: &str, from: EndpointId, topic: &TopicId, id: u64) -
             ciphertext,
             nonce: nonce_bytes.into(),
         },
-        nonce: rand::random(),
     })
 }
-
 
 /*
 Function:   -decrypt_message

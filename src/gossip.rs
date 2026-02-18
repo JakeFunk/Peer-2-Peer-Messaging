@@ -14,7 +14,6 @@ use crate::crypto::decrypt_message;
 use crate::protocol::{Message, MessageBody};
 
 // ── Gossip receive loop ───────────────────────────────────────────────────────
-
 pub async fn subscribe_loop(
     mut receiver: GossipReceiver,
     topic: TopicId,
@@ -103,3 +102,4 @@ pub async fn subscribe_loop(
     }
     Ok(())
 }
+
