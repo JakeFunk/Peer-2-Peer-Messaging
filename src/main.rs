@@ -8,9 +8,8 @@ use std::str::FromStr;
 
 use anyhow::Result;
 use clap::Parser;
-use futures_lite::StreamExt;
 use iroh::{protocol::Router, Endpoint};
-use iroh_gossip::{api::Event, net::Gossip};
+use iroh_gossip::net::Gossip;
 use tokio::sync::mpsc;
 
 use app::UiMessage;
@@ -19,10 +18,8 @@ use protocol::{Message, MessageBody, Ticket};
 
 #[derive(Parser, Debug)]
 struct Args {
-    /// Set your nickname.
     #[clap(short, long)]
     name: Option<String>,
-    /// Set the bind port for our socket. By default, a random port will be used.
     #[clap(short, long, default_value = "0")]
     bind_port: u16,
     #[clap(subcommand)]
@@ -32,10 +29,8 @@ struct Args {
 #[derive(Parser, Debug)]
 enum Command {
     Open,
-    Join { ticket: String },
+    Join
 }
-
-// ── Entry point ───────────────────────────────────────────────────────────────
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -46,8 +41,12 @@ async fn main() -> Result<()> {
             let topic = iroh_gossip::proto::TopicId::from_bytes(rand::random());
             (topic, vec![])
         }
-        Command::Join { ticket } => {
-            let Ticket { topic, endpoints } = Ticket::from_str(ticket)?;
+        Command::Join => {
+            println!("Paste your ticket and press Enter:");
+            let mut input = String::new();
+            std::io::stdin().read_line(&mut input)?;
+            let ticket_str = input.trim();
+            let Ticket { topic, endpoints } = Ticket::from_str(ticket_str)?;
             (topic, endpoints)
         }
     };
@@ -63,77 +62,47 @@ async fn main() -> Result<()> {
         let endpoints = vec![me];
         Ticket { topic, endpoints }
     };
-
-    // Print ticket to terminal BEFORE TUI launches.
-    println!("╔══════════════════════════════════════════════════════════════╗");
-    println!("║                    ENCRYPTED CHAT ROOM                       ║");
-    println!("╚══════════════════════════════════════════════════════════════╝");
-    println!();
-    println!("Topic: {}", topic);
-    println!();
-    println!("Share this ticket with others to join:");
-    println!("{}", ticket);
-    println!();
-
-    // Setup channels.
-    let (ui_tx, ui_rx) = mpsc::channel::<UiMessage>(100);
-    // (message text, pre-assigned id) so the sender loop can embed the same ID
-    // that we already recorded locally.
-    let (input_tx, mut input_rx) = mpsc::channel::<(String, u64)>(100);
-    // Channel for delete requests: sends the message ID to delete everywhere.
-    let (delete_tx, mut delete_rx) = mpsc::channel::<u64>(32);
-
-    // Join the gossip topic.
-    let endpoint_ids = endpoints.iter().map(|p| p.id).collect();
-    if endpoints.is_empty() {
-        println!("Waiting for someone to join...");
-        println!("   Press Ctrl+C to cancel");
-    } else {
-        println!("Connecting to {} peers...", endpoints.len());
+  
+    match &args.command {
+        Command::Open => {
+            println!("╔══════════════════════════════════════════════════════════════╗");
+            println!("║                    ENCRYPTED CHAT ROOM                       ║");
+            println!("╚══════════════════════════════════════════════════════════════╝");
+            println!();
+            println!("Share this ticket with others to join:");
+            println!("{}", ticket);
+            println!();
+        }
+        Command::Join => {
+            println!("╔══════════════════════════════════════════════════════════════╗");
+            println!("║                    ENCRYPTED CHAT ROOM                       ║");
+            println!("╚══════════════════════════════════════════════════════════════╝");
+            println!();
+        }
     }
 
-    let (sender, mut receiver) = gossip
+
+    let (ui_tx, ui_rx) = mpsc::channel::<UiMessage>(100);
+    let (input_tx, mut input_rx) = mpsc::channel::<(String, u64)>(100);
+    let (delete_tx, mut delete_rx) = mpsc::channel::<u64>(32);
+
+    let endpoint_ids = endpoints.iter().map(|p| p.id).collect();
+
+    let (sender, receiver) = gossip
         .subscribe_and_join(topic, endpoint_ids)
         .await?
         .split();
 
-    // Wait for first peer to connect before launching TUI.
-    if endpoints.is_empty() {
-        println!("Waiting for first peer connection...");
-
-        let mut temp_receiver = receiver;
-        let mut first_peer_connected = false;
-
-        while !first_peer_connected {
-            if let Some(event) = temp_receiver.try_next().await? {
-                if let Event::Received(msg) = event {
-                    if let Ok(message) = Message::from_bytes(&msg.content) {
-                        if matches!(message.body, MessageBody::AboutMe { .. }) {
-                            first_peer_connected = true;
-                            println!("Peer connected! Launching chat interface...");
-                            std::thread::sleep(std::time::Duration::from_millis(500));
-                        }
-                    }
-                }
-            }
-            tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
-        }
-
-        receiver = temp_receiver;
-    } else {
-        println!("Connected!");
-        std::thread::sleep(std::time::Duration::from_millis(500));
-    }
-
-    // Broadcast our name.
     let my_name = args.name.clone().unwrap_or_else(|| "Anonymous".to_string());
     let my_id = endpoint.id();
 
+    // Broadcast our name immediately.
     let message = Message::new(MessageBody::AboutMe {
         from: my_id,
         name: my_name.clone(),
     });
     sender.broadcast(message.to_vec().into()).await?;
+
     ui_tx
         .send(UiMessage::System(format!("You joined as {}", my_name)))
         .await?;
@@ -147,6 +116,7 @@ async fn main() -> Result<()> {
     let ui_tx_clone = ui_tx.clone();
     tokio::spawn(gossip::subscribe_loop(
         receiver,
+        sender.clone(),
         topic,
         ui_tx_clone,
         my_id,
@@ -154,8 +124,6 @@ async fn main() -> Result<()> {
     ));
 
     // Spawn message sender / deleter loop.
-    // We clone `sender` for the delete path by wrapping both in a single task
-    // and using tokio::select! to drive whichever channel fires first.
     tokio::spawn(async move {
         loop {
             tokio::select! {
@@ -173,9 +141,10 @@ async fn main() -> Result<()> {
         }
     });
 
-    // Run the TUI.
+    // Run the TUI — opens immediately, peers appear as they connect.
     tui::run_tui(ui_rx, input_tx, delete_tx).await?;
 
     router.shutdown().await?;
-    Ok(())
+    std::process::exit(0);
+
 }

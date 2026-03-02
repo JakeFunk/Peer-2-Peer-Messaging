@@ -100,10 +100,6 @@ pub async fn run_tui(
                 .map(|m| match m {
                 UiMessage::Chat(chat) => ListItem::new(Line::from(vec![
                     Span::styled(
-                        if chat.encrypted { "[enc] " } else { "[!!!] " },
-                        Style::default().fg(Color::Green),
-                    ),
-                    Span::styled(
                         &chat.sender,
                     Style::default()
                         .fg(Color::Cyan)
@@ -205,7 +201,6 @@ pub async fn run_tui(
                                     id,
                                     sender: "You".to_string(),
                                     content: text.clone(),
-                                    encrypted: true,
                                 }));
                                 // Remember the ID so we can delete it later.
                                 app.my_sent_ids.push(id);
@@ -239,7 +234,7 @@ pub async fn run_tui(
                         KeyCode::Char('d')
                             if key.modifiers.contains(event::KeyModifiers::CONTROL) =>
                         {
-                            if let Some(id) = app.my_sent_ids.last().copied() {
+                            if let Some(id) = app.my_sent_ids.pop() {
                                 // Remove locally first for instant feedback.
                                 app.add_message(UiMessage::Delete(id));
                                 // Broadcast the deletion to all peers.

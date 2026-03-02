@@ -26,7 +26,6 @@ pub struct ChatMessage {
     pub id: u64,
     pub sender: String,
     pub content: String,
-    pub encrypted: bool,
 }
 
 
@@ -49,7 +48,6 @@ Details:
 pub enum UiMessage {
     Chat(ChatMessage),
     System(String),
-    /// Instructs the UI to remove the chat message with this ID.
     Delete(u64),
 }
 
